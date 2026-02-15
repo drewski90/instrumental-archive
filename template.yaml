@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Media ingestion infrastructure
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 512
+
+Resources:
+
+# --------------------------
+# DynamoDB Single Table
+# --------------------------
+  AppTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-table"
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: sha256
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: sha256-index
+          KeySchema:
+            - AttributeName: sha256
+              KeyType: HASH
+            - AttributeName: SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+
+# --------------------------
+# S3 Bucket with CORS
+# --------------------------
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-media"
+      CorsConfiguration: 
+        CorsRules:
+        - AllowedHeaders:
+          - "*"
+          AllowedMethods:
+          - GET
+          - HEAD
+          - PUT
+          - POST
+          - DELETE
+          AllowedOrigins:
+          - "*"
+      OwnershipControls: 
+        Rules:
+        - ObjectOwnership: BucketOwnerPreferred
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: false
+        BlockPublicPolicy: true
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: true
+
+# --------------------------
+# Lambda
+# --------------------------
+  MediaEventHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-media-handler"
+      CodeUri: lambda/
+      Handler: handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub "${AWS::StackName}-table"
+        - S3CrudPolicy:
+            BucketName: !Sub "${AWS::StackName}-media"
+      Environment:
+        Variables:
+          TABLE_NAME: !Sub "${AWS::StackName}-table"
+          BUCKET_NAME: !Sub "${AWS::StackName}-media"
+      Events:
+        S3Create:
+          Type: S3
+          Properties:
+            Bucket: !Ref MediaBucket
+            Events: s3:ObjectCreated:*
+        S3Delete:
+          Type: S3
+          Properties:
+            Bucket: !Ref MediaBucket
+            Events: s3:ObjectRemoved:*
+
+# --------------------------
+# IAM Programmatic User
+# --------------------------
+  AppProgrammaticUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "${AWS::StackName}-programmatic-user"
+
+  AppProgrammaticPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${AWS::StackName}-crud-policy"
+      Users:
+        - !Ref AppProgrammaticUser
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:*
+            Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AWS::StackName}-table"
+
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource:
+              - !Sub "arn:aws:s3:::${AWS::StackName}-media"
+              - !Sub "arn:aws:s3:::${AWS::StackName}-media/*"
+
+  AppProgrammaticAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref AppProgrammaticUser
+
+# --------------------------
+# Outputs
+# --------------------------
+Outputs:
+
+  TableName:
+    Value: !Sub "${AWS::StackName}-table"
+
+  BucketName:
+    Value: !Sub "${AWS::StackName}-media"
+
+  ProgrammaticAccessKeyId:
+    Value: !Ref AppProgrammaticAccessKey
+
+  ProgrammaticSecretAccessKey:
+    Value: !GetAtt AppProgrammaticAccessKey.SecretAccessKey
