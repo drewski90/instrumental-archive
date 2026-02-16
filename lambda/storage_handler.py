@@ -1,29 +1,12 @@
 import os
 import boto3
 import json
-import hashlib
 from datetime import datetime, timezone
 from urllib.parse import unquote_plus
 
 s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
-
-
-# -------------------------------------------------------
-# Stream SHA256
-# -------------------------------------------------------
-def compute_sha256(bucket, key, chunk_size=1024 * 1024):
-    sha = hashlib.sha256()
-    obj = s3.get_object(Bucket=bucket, Key=key)
-
-    while True:
-        chunk = obj["Body"].read(chunk_size)
-        if not chunk:
-            break
-        sha.update(chunk)
-
-    return sha.hexdigest()
 
 
 # -------------------------------------------------------
@@ -47,6 +30,9 @@ def write_log(action, key, bucket, extra=None):
     table.put_item(Item=item)
 
 
+# -------------------------------------------------------
+# Handler
+# -------------------------------------------------------
 def lambda_handler(event, context):
 
     print(json.dumps(event))
@@ -56,21 +42,12 @@ def lambda_handler(event, context):
         bucket = record["s3"]["bucket"]["name"]
         key = unquote_plus(record["s3"]["object"]["key"])
 
+        parts = key.split("/")
+        sha256 = parts[4] if len(parts) >= 5 else None
+
         if event_name.startswith("ObjectCreated"):
 
             head = s3.head_object(Bucket=bucket, Key=key)
-
-            sha256 = compute_sha256(bucket, key)
-
-            # ---- check duplicate hash
-            dup = table.query(
-                IndexName="sha256-index",   # your GSI
-                KeyConditionExpression="sha256 = :h",
-                ExpressionAttributeValues={":h": sha256},
-                Limit=1
-            )
-
-            exists = dup.get("Count", 0) > 0
 
             table.put_item(
                 Item={
@@ -87,10 +64,7 @@ def lambda_handler(event, context):
                 }
             )
 
-            if exists:
-                write_log("DUPLICATE_HASH", key, bucket, {"sha256": sha256})
-            else:
-                write_log("OBJECT_CREATED", key, bucket, {"sha256": sha256})
+            write_log("OBJECT_CREATED", key, bucket)
 
         elif event_name.startswith("ObjectRemoved"):
 

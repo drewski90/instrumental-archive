@@ -68,7 +68,7 @@ export const usePlayerStore = defineStore('player', {
     const { data } = await api.get('/uploads/presign-get', {
       params: { key: track.SK }
     })
-
+    console.log(data.url)
     this.audio.src = data.url
   }
 

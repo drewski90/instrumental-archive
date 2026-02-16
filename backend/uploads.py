@@ -1,7 +1,7 @@
 import boto3
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
-from models import InstrumentalUploadForm
+from models import UploadForm
 from datetime import datetime, timezone
 from ulid import ULID
 import json
@@ -9,6 +9,7 @@ import boto3
 from flask import request, jsonify, current_app
 from boto3.dynamodb.conditions import Key, Attr
 from utils import login_required, is_authorized
+from os import environ
 
 dynamodb = boto3.resource("dynamodb")
 s3 = boto3.client("s3")
@@ -21,8 +22,8 @@ uploads_router = Blueprint("uploads", __name__)
 @login_required
 def create_upload():
 
-    payload = InstrumentalUploadForm(**request.json)
-    bucket = current_app.config["S3_BUCKET"]
+    payload = UploadForm(**request.json)
+    bucket = current_app.config["UPLOAD_BUCKET"]
 
     filename = secure_filename(payload.file_name)
 
@@ -32,7 +33,7 @@ def create_upload():
 
     # Partitioned object key
     object_key = (
-        f"instrumentals/"
+        f"{payload.file_category}/"
         f"year/{dt.year}/month/{dt.month:02}/day/{dt.day:02}/"
         f"{str(ULID())}/{filename}"
     )
@@ -96,8 +97,6 @@ def list_instrumentals():
         "ScanIndexForward": False
     }
 
-    print("IS AUTH", is_authorized())
-
     # Apply public visibility filter ONLY if user is not authorized
     if not is_authorized():
         query_args["FilterExpression"] = Attr("visibility").eq(True)
@@ -156,7 +155,7 @@ def toggle_visibility():
 @uploads_router.route("/uploads/presign-get", methods=["GET"])
 def presign_get():
 
-    bucket = current_app.config["S3_BUCKET"]
+    bucket = current_app.config["STORAGE_BUCKET"]
 
     # SK from DynamoDB item (the S3 object key)
     key = request.args.get("key")

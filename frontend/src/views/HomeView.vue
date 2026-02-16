@@ -4,13 +4,19 @@
     <h4 class="mb-4">Browse Instrumentals</h4>
 
     <div class="row g-2">
-      <div v-for="(track, index) in tracks" :key="track.id" class="col-12 col-sm-6 col-md-4 col-lg-3">
-        <div class="card text-light" :class="{
-          'bg-primary border-primary shadow': player.currentIndex === index
-        }">
+      <div
+        v-for="(track, index) in tracks"
+        :key="track.id"
+        class="col-12 col-sm-6 col-md-4 col-lg-3"
+      >
+        <div
+          class="card text-light"
+          :class="{ 'active-track': player.currentIndex === index }"
+        >
 
           <div class="card-body p-2">
             <div class="d-flex align-items-center justify-content-between">
+
               <div>
                 <div class="h6 mb-0">{{ track.title }}</div>
                 <div class="small">{{ track.lastModified }}</div>
@@ -28,16 +34,21 @@
                   <i :class="track.visibility ? 'bi bi-eye-fill' : 'bi bi-eye-slash'"></i>
                 </button>
 
-                <!-- Play -->
-                <button class="btn text-light btn-sm" @click="player.playFromQueue(index)">
-                  <i :class="player.currentIndex === index && player.playing
-                    ? 'bi bi-pause-fill'
-                    : 'bi bi-play-fill'"></i>
+                <!-- Play / Pause -->
+                <button
+                  class="btn text-light btn-sm"
+                  @click="togglePlay(index)"
+                >
+                  <i
+                    :class="player.currentIndex === index && player.playing
+                      ? 'bi bi-pause-fill'
+                      : 'bi bi-play-fill'"
+                  ></i>
                 </button>
 
               </div>
-            </div>
 
+            </div>
           </div>
 
         </div>
@@ -71,9 +82,24 @@ onMounted(async () => {
   await store.fetch({ reset: true })
 })
 
+function togglePlay(index) {
+
+  // clicking the currently playing track toggles pause/play
+  if (player.currentIndex === index) {
+    player.toggle()
+    return
+  }
+
+  // otherwise play selected track
+  player.playFromQueue(index)
+}
+
 function formatDate(ts) {
   if (!ts) return ''
-  const d = new Date(Number(ts))
+
+  const d = new Date(Number(ts)) // supports epoch or ISO
+  if (isNaN(d)) return ''
+
   return d.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -81,9 +107,13 @@ function formatDate(ts) {
   })
 }
 
-watch(tracks, (val) => {
-  if (val.length) {
-    player.setQueue(val)
-  }
-}, { immediate: true })
+watch(
+  tracks,
+  (val) => {
+    if (val.length) {
+      player.setQueue(val)
+    }
+  },
+  { immediate: true }
+)
 </script>

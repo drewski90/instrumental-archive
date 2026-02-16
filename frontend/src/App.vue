@@ -168,12 +168,14 @@ onMounted(async () => {
 }
 
 .card {
-  background-color: rgba(24, 0, 113, 0.667) !important;
+  background-color: rgba(18, 12, 40, 0.396) !important;
   color: white !important;
+  border-radius: 0px !important;
+  border: 1px solid rgba(10, 4, 55, 0.393) !important;
 }
 .card.active-track {
-  background: rgba(80,140,255,0.25);
-  border-color: rgba(120,170,255,0.6);
+  background: rgba(134, 134, 134, 0.25);
+  border: 1px solid rgba(120,170,255,0.6) !important;
   backdrop-filter: blur(10px);
 }
 </style>

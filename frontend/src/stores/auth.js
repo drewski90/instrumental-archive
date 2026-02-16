@@ -4,44 +4,44 @@ import api from '@/lib/api'
 export const useAuthStore = defineStore('auth', {
 
   state: () => ({
-    username: null,
-    password: null,
+    username: sessionStorage.getItem('username'),
+    password: sessionStorage.getItem('password'),
     loading: false
   }),
 
   getters: {
     isAuthenticated: (s) => !!(s.username && s.password),
-    authHeader: (s) => s.username? "Basic " + btoa(`${s.username}:${s.password}`): null
+    authHeader: (s) =>
+      s.username ? "Basic " + btoa(`${s.username}:${s.password}`) : null
   },
 
   actions: {
 
-    async login(username, password){
-
+    async login(username, password) {
       this.loading = true
-
-      try{
+      try {
         const token = btoa(`${username}:${password}`)
 
-        // verify credentials using auth header
         await api.post('/login', null, {
-          headers: {
-            Authorization: `Basic ${token}`
-          }
+          headers: { Authorization: `Basic ${token}` }
         })
 
-        // store credentials only after successful verification
         this.username = username
         this.password = password
+
+        sessionStorage.setItem('username', username)
+        sessionStorage.setItem('password', password)
 
       } finally {
         this.loading = false
       }
     },
 
-    logout(){
+    logout() {
       this.username = null
       this.password = null
+      sessionStorage.removeItem('username')
+      sessionStorage.removeItem('password')
     }
   }
 })

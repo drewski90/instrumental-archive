@@ -81,6 +81,7 @@ function logout(){
   font-weight:600;
   letter-spacing:2px;
   color:white;
+  text-transform: uppercase;
 }
 
 .nav-link{

@@ -20,7 +20,7 @@ def is_authorized() -> bool:
         username, password = decoded.split(":", 1)
     except Exception:
         return False
-
+    
     return (
         username == environ["USERNAME"]
         and password == environ["PASSWORD"]

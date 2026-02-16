@@ -13,7 +13,6 @@ api.interceptors.request.use((config) => {
   const auth = useAuthStore()
 
   if (auth.authHeader) {
-    console.log('set', auth.authHeader)
     config.headers = config.headers || {}
     config.headers.Authorization = auth.authHeader
   }

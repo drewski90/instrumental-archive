@@ -43,14 +43,42 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-
 # --------------------------
-# S3 Bucket with CORS
+# Upload Bucket (staging)
 # --------------------------
-  MediaBucket:
+  UploadBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::StackName}-media"
+      BucketName: !Sub "${AWS::StackName}-upload"
+      CorsConfiguration: 
+        CorsRules:
+        - AllowedHeaders:
+          - "*"
+          AllowedMethods:
+          - GET
+          - HEAD
+          - PUT
+          - POST
+          - DELETE
+          AllowedOrigins:
+          - "*"
+      OwnershipControls: 
+        Rules:
+        - ObjectOwnership: BucketOwnerPreferred
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: false
+        BlockPublicPolicy: true
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: true
+
+
+# --------------------------
+# Permanent Storage Bucket
+# --------------------------
+  StorageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-storage"
       CorsConfiguration: 
         CorsRules:
         - AllowedHeaders:
@@ -75,31 +103,56 @@ Resources:
 # --------------------------
 # Lambda
 # --------------------------
-  MediaEventHandler:
+  UploadEventHandler:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "${AWS::StackName}-media-handler"
+      FunctionName: !Sub "${AWS::StackName}-upload-handler"
       CodeUri: lambda/
-      Handler: handler.lambda_handler
+      Handler: upload_handler.lambda_handler
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Sub "${AWS::StackName}-table"
         - S3CrudPolicy:
-            BucketName: !Sub "${AWS::StackName}-media"
+            BucketName: !Sub "${AWS::StackName}-upload"
+        - S3CrudPolicy:
+            BucketName: !Sub "${AWS::StackName}-storage"
       Environment:
         Variables:
           TABLE_NAME: !Sub "${AWS::StackName}-table"
-          BUCKET_NAME: !Sub "${AWS::StackName}-media"
+          UPLOAD_BUCKET: !Sub "${AWS::StackName}-upload"
+          STORAGE_BUCKET: !Sub "${AWS::StackName}-storage"
       Events:
         S3Create:
           Type: S3
           Properties:
-            Bucket: !Ref MediaBucket
+            Bucket: !Ref UploadBucket
+            Events: s3:ObjectCreated:*
+
+
+  StorageEventHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-storage-handler"
+      CodeUri: lambda/
+      Handler: storage_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub "${AWS::StackName}-table"
+        - S3ReadPolicy:
+            BucketName: !Sub "${AWS::StackName}-storage"
+      Environment:
+        Variables:
+          TABLE_NAME: !Sub "${AWS::StackName}-table"
+      Events:
+        S3Create:
+          Type: S3
+          Properties:
+            Bucket: !Ref StorageBucket
             Events: s3:ObjectCreated:*
         S3Delete:
           Type: S3
           Properties:
-            Bucket: !Ref MediaBucket
+            Bucket: !Ref StorageBucket
             Events: s3:ObjectRemoved:*
 
 # --------------------------
@@ -128,8 +181,10 @@ Resources:
             Action:
               - s3:*
             Resource:
-              - !Sub "arn:aws:s3:::${AWS::StackName}-media"
-              - !Sub "arn:aws:s3:::${AWS::StackName}-media/*"
+              - !Sub "arn:aws:s3:::${AWS::StackName}-upload"
+              - !Sub "arn:aws:s3:::${AWS::StackName}-upload/*"
+              - !Sub "arn:aws:s3:::${AWS::StackName}-storage"
+              - !Sub "arn:aws:s3:::${AWS::StackName}-storage/*"
 
   AppProgrammaticAccessKey:
     Type: AWS::IAM::AccessKey
@@ -144,8 +199,11 @@ Outputs:
   TableName:
     Value: !Sub "${AWS::StackName}-table"
 
-  BucketName:
-    Value: !Sub "${AWS::StackName}-media"
+  UploadBucketName:
+    Value: !Sub "${AWS::StackName}-upload"
+
+  StorageBucketName:
+    Value: !Sub "${AWS::StackName}-storage"
 
   ProgrammaticAccessKeyId:
     Value: !Ref AppProgrammaticAccessKey

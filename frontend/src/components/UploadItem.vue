@@ -31,7 +31,8 @@ async function upload(){
   const payload = {
     file_name: props.file.name,
     last_modified: String(props.file.lastModified),
-    content_type: props.file.type
+    content_type: props.file.type,
+    file_category: 'instrumentals'
   }
 
   // Step 1: presign
@@ -43,8 +44,12 @@ async function upload(){
   Object.entries(fields).forEach(([k,v]) => form.append(k, v))
   form.append("file", props.file)
   form.append("Content-Type", props.file.type)
-
   await api.post(url, form, {
+    transformRequest: (data, headers) => {
+      delete headers.common?.Authorization
+      delete headers.Authorization
+      return data
+    },
     onUploadProgress: e => {
       progress.value = Math.round((e.loaded * 100) / e.total)
     }
